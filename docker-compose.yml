@@ -1,12 +1,160 @@
 services:
-  backend:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: soccer-rabbitmq
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-guest}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - soccer-network
+
+  mongodb:
+    image: mongo:7
+    container_name: soccer-mongodb
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=${MONGODB_DB:-soccer_scrapper}
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - soccer-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: soccer-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - soccer-network
+
+  job-api:
     build:
       context: ./src/backend
       dockerfile: Dockerfile.job-api
-    image: soccer-backend:latest
-    profiles:
-      - backend-only
+    container_name: soccer-job-api
+    ports:
+      - "${JOB_API_PORT:-8001}:8001"
+    environment:
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672//}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - DEBUG=${DEBUG:-false}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - soccer-network
+
+  persist-api:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile.persist-api
+    container_name: soccer-persist-api
+    ports:
+      - "${PERSIST_API_PORT:-8002}:8002"
+    environment:
+      - MONGODB_URL=${MONGODB_URL:-mongodb://mongodb:27017}
+      - MONGODB_DB=${MONGODB_DB:-soccer_scrapper}
+      - DEBUG=${DEBUG:-false}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - soccer-network
+
+  job-worker:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile.job-worker
+    container_name: soccer-job-worker
+    environment:
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672//}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - BZZOIRO_API_URL=${BZZOIRO_API_URL:-https://sports.bzzoiro.com/api}
+      - BZZOIRO_API_TOKEN=${BZZOIRO_API_TOKEN:-}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - soccer-network
+
+  persist-worker:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile.persist-worker
+    container_name: soccer-persist-worker
+    environment:
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672//}
+      - MONGODB_URL=${MONGODB_URL:-mongodb://mongodb:27017}
+      - MONGODB_DB=${MONGODB_DB:-soccer_scrapper}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    networks:
+      - soccer-network
+
+  beat:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile.beat
+    container_name: soccer-beat
+    environment:
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672//}
+      - BZZOIRO_API_URL=${BZZOIRO_API_URL:-https://sports.bzzoiro.com/api}
+      - BZZOIRO_API_TOKEN=${BZZOIRO_API_TOKEN:-}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - soccer-network
+
+  frontend:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+    container_name: soccer-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    environment:
+      - VITE_API_URL=${FRONTEND_API_URL:-http://localhost:8002}
+    depends_on:
+      - persist-api
+    networks:
+      - soccer-network
+
+volumes:
+  rabbitmq_data:
+  mongodb_data:
+  redis_data:
 
 networks:
   soccer-network:
-    external: true
+    driver: bridge

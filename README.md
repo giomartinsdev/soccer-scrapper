@@ -1,6 +1,6 @@
 # Soccer Scrapper
 
-Event-driven job processing system for scraping football data.
+Event-driven job processing system for scraping football data with React frontend.
 
 ## Project Structure
 
@@ -8,15 +8,15 @@ Event-driven job processing system for scraping football data.
 ├── src/
 │   ├── backend/           # Python backend (FastAPI + Celery)
 │   │   ├── apps/         # FastAPI applications (DDD)
-│   │   │   ├── job_api/     # Job creation API
-│   │   │   └── persist_api/ # Data query API
+│   │   │   ├── job_api/     # Job creation API (port 8001)
+│   │   │   └── persist_api/ # Data query API (port 8002)
 │   │   ├── workers/      # Celery workers (Vertical Slice)
 │   │   │   ├── job_worker/  # Scraping worker
 │   │   │   └── persist_worker/ # Persistence worker
 │   │   ├── requirements.txt
 │   │   ├── Dockerfile.*   # Service Dockerfiles
 │   │   └── docker-compose.yml
-│   └── frontend/         # Frontend (empty, to be implemented)
+│   └── frontend/         # React frontend (port 5173 dev, 3000 prod)
 ├── docker-compose.yml    # Root compose for orchestration
 └── .env                 # Environment variables
 ```
@@ -29,9 +29,35 @@ cd src/backend
 docker compose up -d
 ```
 
-### Start Frontend
+### Start Frontend (dev)
+```bash
+cd src/frontend
+npm install
+npm run dev
+```
+
+### Start Frontend (production)
 ```bash
 docker compose up -d frontend
+```
+
+## Frontend
+
+The frontend displays:
+- **Live Matches**: Real-time scores for ongoing matches
+- **Top Predictions**: AI predictions sorted by confidence
+- **Upcoming Events**: Scheduled matches with odds
+
+### Development
+```bash
+cd src/frontend
+npm run dev  # Runs on http://localhost:5173
+```
+
+### Production Build
+```bash
+cd src/frontend
+npm run build
 ```
 
 ## Backend Services

@@ -3,7 +3,8 @@
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, Query, status
+from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from apps.common.logging import setup_logging
@@ -34,6 +35,14 @@ app = FastAPI(
     description="API for querying persisted scraping data",
     version="1.0.0",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
