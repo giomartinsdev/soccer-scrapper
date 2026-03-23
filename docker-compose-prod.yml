@@ -1,0 +1,71 @@
+services:
+  job-api:
+    image: registry.giomartins.dev/soccer-job-api:latest
+    container_name: soccer-job-api
+    ports:
+      - "${JOB_API_PORT:-8001}:8001"
+    environment:
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672//}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - DEBUG=${DEBUG:-false}
+    networks:
+      - infraNetwork
+
+  persist-api:
+    image: registry.giomartins.dev/soccer-persist-api:latest
+    container_name: soccer-persist-api
+    ports:
+      - "${PERSIST_API_PORT:-8002}:8002"
+    environment:
+      - MONGODB_URL=${MONGODB_URL:-mongodb://mongodb:27017}
+      - MONGODB_DB=${MONGODB_DB:-soccer_scrapper}
+      - DEBUG=${DEBUG:-false}
+    networks:
+      - infraNetwork
+
+  job-worker:
+    image: registry.giomartins.dev/soccer-job-worker:latest
+    container_name: soccer-job-worker
+    environment:
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672//}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - BZZOIRO_API_URL=${BZZOIRO_API_URL:-https://sports.bzzoiro.com/api}
+      - BZZOIRO_API_TOKEN=${BZZOIRO_API_TOKEN:-}
+    networks:
+      - infraNetwork
+
+  persist-worker:
+    image: registry.giomartins.dev/soccer-persist-worker:latest
+    container_name: soccer-persist-worker
+    environment:
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672//}
+      - MONGODB_URL=${MONGODB_URL:-mongodb://mongodb:27017}
+      - MONGODB_DB=${MONGODB_DB:-soccer_scrapper}
+    networks:
+      - infraNetwork
+
+  beat:
+    image: registry.giomartins.dev/soccer-beat:latest
+    container_name: soccer-beat
+    environment:
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672//}
+      - BZZOIRO_API_URL=${BZZOIRO_API_URL:-https://sports.bzzoiro.com/api}
+      - BZZOIRO_API_TOKEN=${BZZOIRO_API_TOKEN:-}
+    networks:
+      - infraNetwork
+
+  frontend:
+    image: registry.giomartins.dev/soccer-frontend:latest
+    container_name: soccer-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    environment:
+      - VITE_API_URL=${FRONTEND_API_URL:-http://localhost:8002}
+    depends_on:
+      - persist-api
+    networks:
+      - infraNetwork
+
+networks:
+  infraNetwork:
+    external: true

@@ -25,8 +25,8 @@ services:
       - "${MONGODB_PORT:-27017}:27017"
     environment:
       - MONGO_INITDB_DATABASE=${MONGODB_DB:-soccer_scrapper}
-    volumes:
-      - mongodb_data:/data/db
+      - MONGO_INITDB_ROOT_USERNAME=${MONGODB_USER:-root}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_PASS:-rootpassword}
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 30s
@@ -77,14 +77,21 @@ services:
     ports:
       - "${PERSIST_API_PORT:-8002}:8002"
     environment:
-      - MONGODB_URL=${MONGODB_URL:-mongodb://mongodb:27017}
+      - MONGODB_URL=${MONGODB_URL}
       - MONGODB_DB=${MONGODB_DB:-soccer_scrapper}
       - DEBUG=${DEBUG:-false}
     depends_on:
       mongodb:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     networks:
       - soccer-network
+    restart: unless-stopped
 
   job-worker:
     build:
@@ -111,7 +118,7 @@ services:
     container_name: soccer-persist-worker
     environment:
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672//}
-      - MONGODB_URL=${MONGODB_URL:-mongodb://mongodb:27017}
+      - MONGODB_URL=${MONGODB_URL}
       - MONGODB_DB=${MONGODB_DB:-soccer_scrapper}
     depends_on:
       rabbitmq:
@@ -146,9 +153,11 @@ services:
     environment:
       - VITE_API_URL=${FRONTEND_API_URL:-http://localhost:8002}
     depends_on:
-      - persist-api
+      persist-api:
+        condition: service_healthy
     networks:
       - soccer-network
+    restart: unless-stopped
 
 volumes:
   rabbitmq_data:
